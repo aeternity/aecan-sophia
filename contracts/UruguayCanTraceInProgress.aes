@@ -1,0 +1,451 @@
+namespace List =
+  function filter(f : ('a) => bool, l : list('a)) = filter'(f, l, [])
+  private function filter'(f : ('a) => bool, l : list('a), acc : list('a)) =
+    switch(l)
+      [] => acc
+      e :: l' =>
+        if(f(e))
+          filter'(f, l', e :: acc)
+        else
+          filter'(f, l', acc)
+
+namespace Tuple =
+  function pair_second(tuple) =
+    switch(tuple)
+      (_, e) => e
+
+contract UruguayCanTrace =
+  record fileStorage = {
+         id:int,
+         name:int,
+         signature:hash}
+
+  record application ={
+         id:string,
+         quantity:int,
+         measure_unit:measureUnit,
+         created_at:string,  //todate
+         work_order:workOrder}
+
+  record measureUnit = { id:int,
+                        name:string,
+                        short_name:string}
+
+  record greenHouseLocation = {
+       id:string,
+       identifier:string}
+
+  record flowerPotSize = {
+       id:string,
+       value:int, // OS: worth creating decimal library?
+       identifier:string,
+       measure_unit : measureUnit}
+       
+  record subtratumType = {
+         id:string,
+         name:string,
+         composition:string}
+    
+  record workOrder ={
+         id:int,
+         wo_state:string,
+         start_date:string,
+         finish_date:string,
+         procedure:procedure,
+         lot_stage:lotStage,
+         product:product} //check this againts lot_stage_id
+
+  record stage ={
+         id:string,
+         name:string,
+         order:int,
+         created_at:string,
+         plant_density:int,
+         key:string,
+         admits_beacons:bool}
+
+  record greenHouseLocationHistory = {
+         id:int,
+         lot_stage:lotStage,
+         green_house_location:greenHouseLocation}
+         
+  record lotStage ={
+         id:int,
+         lot:lot,
+         beacons : map(int, beacon),
+         stage:stage,
+         users: map(address,user),
+         actual_state:string,
+         subtratum_type:subtratumType,
+         flower_pot_size: flowerPotSize,
+         mother_plant:motherPlant,
+         plant_density:int,
+         weight_in_kg:int,
+         origin:string,
+         destination:string,
+         fresh_flower_weight:int,
+         manicure_and_trim_date:string,
+         flowers_entry_weight:int,
+         dry_flowers_weight:int,
+         beginning_of_drying_date:string
+    }
+
+  record motherPlant = {
+         identifier:string,
+         description:string}
+         
+  record userRole = {
+         id:int,
+         name:string,
+         level:int}
+    
+  record lot = { 
+         identifier : int, 
+         name : string,
+         start_date : string,
+         end_date : string,
+         variety: plantVariety,
+         irrigation_type : irrigationType,
+         weight_in_kg:int}
+    
+  record user = { 
+         name : string,
+         role: userRole,
+         lots: map(int,lot)}
+    
+  record irrigationType = { id : int, name : string }
+
+  record plantVariety = { id:int, name : string}
+
+  record beacon = { id:int, identifier : string}
+
+  
+  record procedure = {
+         id:string,
+         name:string,
+         description:string,
+         procedure_type:string,
+         control_organism:string}
+
+  record product = {
+         id:string,
+         trade_name:string,
+         composition:string,
+         active_principle:bool,
+         is_organic:bool}
+
+  datatype event =
+      AddUser(string)
+    | AddProcedure(string)
+    | AddProduct(string)
+    | AddLot(int,string)
+    | AddIrrigationType(int,string)
+    | AddPlantVariety(int,string)
+    | AddBeacon(int,string)
+    | AddWorkOrder(int,string)
+    | AddMotherPlant(string)
+    | AddStage(string)
+    | AddApplication(string,int)
+    | AddMeasureUnit(int,string)
+    | AddGreenHouseLocation(string)
+    | AddFlowerPotSize(string)
+    | AddSubtratumType(string)
+    | AddGreenHouseLocationHistory(int,int,string)
+    | AddLotStage(int,int)
+
+  record state = {
+         applications:map(string, application),
+         roles : map(int,userRole),
+         lots : map(int, lot),
+         admins :map(address,user), 
+         users : map(address,user),
+         plan_varieties : map(int, plantVariety),
+         irrigation_types : map(int, irrigationType),
+         beacons : map (int, beacon),
+         work_orders:map(int,workOrder),
+         products:map(string, product),
+         procedures:map(string,procedure),
+         lot_stages:map(int,lotStage),
+         mother_plants : map(string, motherPlant),
+         stages:map(string,stage),
+         measure_units:map(int,measureUnit),
+         flower_pot_sizes:map(string,flowerPotSize),
+         subtratum_types:map(string,subtratumType),
+         green_house_locations:map(string,greenHouseLocation),
+         green_house_locations_history:map(int,greenHouseLocationHistory)}
+        
+  entrypoint version() : int = 1
+         
+  stateful entrypoint init()={applications={},irrigation_types={}, lot_stages={}, mother_plants={}, stages={}, measure_units={}, flower_pot_sizes={}, subtratum_types={}, green_house_locations={}, green_house_locations_history={},roles={}, lots = {}, admins = {}, users = {}, plan_varieties = {},beacons = {},work_orders = {},products = {},procedures= {}}
+  
+  function isAdmin() =
+    if (Call.caller!=Contract.creator)
+      require(Map.member(Call.caller,state.admins),"not allowed") //role roles={id=1, name="Owner", level=0} // [Call.caller]={name="Omar Saadoun", role={id=1, name="Owner", level=0},lots={}}
+  
+  function isOwner() =
+    require(Call.caller==Contract.creator,"you are not the owner")
+  
+  stateful entrypoint add_procedure(id:string, name:string, description:string, procedure_type:string, control_organism:string) = 
+    isAdmin()
+    require(!Map.member(id,state.procedures),"procedure already exists")
+    let procedure_to_add = {id=id,name=name,description=description,procedure_type=procedure_type,control_organism=control_organism}
+    put(state{procedures[id]=procedure_to_add})
+    Chain.event(AddProcedure(name))
+    
+  entrypoint get_procedure(id:string) : option(procedure) = Map.lookup(id,state.procedures)
+
+  stateful entrypoint add_role(id1:int, name1:string, level1:int) =
+    isAdmin()
+    let user_role={id=id1, name=name1, level=level1}
+    put(state{roles[id1]=user_role})
+
+  stateful entrypoint add_user(user_address:address,name:string, role:int) =
+    isAdmin()
+    put(state{users[user_address]={name=name,lots={},role=state.roles[role]}})
+
+  stateful entrypoint add_admin(user_address,name) =
+    isOwner()
+    let user_role={id=1, name="Admin", level=0}
+    put(state{roles[1]=user_role})
+    put(state{users[user_address]={name=name,lots={},role=state.roles[1]}})
+
+  stateful entrypoint initial_configuration() =
+    isOwner()
+    //adding basic roles other than admin
+    add_admin(Call.caller,"Omar Saadoun")
+    add_role(2,"Operator",1)
+    add_role(3,"External",2)
+    add_measure_unit(1,"litro","l")
+    add_measure_unit(2,"Porcentaje","%")
+    add_measure_unit(3,"Humedad del ambiente","hm")
+    add_measure_unit(4,"Litros de agua por goteo","lag")
+    add_measure_unit(5,"Lumens","lm")
+    add_measure_unit(6,"Cantidad de luz","cl")
+    add_measure_unit(7,"Grados Centígrados","C")
+    add_measure_unit(8,"Temperatura del ambiente","ta")
+     //add_measure_unit(id:int,name:string,short_name:string)
+    add_stage("1","Esquejado",1, "",-1,"esquejado",true)
+    add_stage("2","Vegetativo",2, "",12,"vegetativo",true)
+    add_stage("3","Floracion",3, "",4,"floracion",true)
+    add_stage("4","Cosecha",4, "",-1,"cosecha",true)
+    add_stage("5","Transporte",5, "",-1,"transporte",false)
+    add_stage("6","Acondicionamiento",6, "",-1,"acondicionamiento",false)
+    add_stage("7","Secado",7, "",-1,"secado",false)
+    add_stage("8","Empaquetado",8, "",-1,"empaquetado",false)
+    
+    //add_stage(id:string,name:string,order:int,created_at:string,plant_density:int,key:string,admits_beacons:bool) 
+
+
+    add_irrigation_type(1, "Riego por goteo")
+    //add_irrigation_type(id:int, name:string)
+    
+    add_procedure("1", "Enraizar", "Enraizar", "tratamiento", "")
+    add_procedure("2", "Tratamiento preventivo para enfermedades", "Tratamiento preventivo para enfermedades", "tratamiento", "")
+    add_procedure("3", "Tratamiento por monitoreo aplicados por insectos", "Tratamiento por monitoreo aplicados por insectos", "tratamiento", "")
+    add_procedure("4", "Fertilización foliar", "Fertilización foliar", "fertilizacion", "")
+    //add_procedure(id:string, name:string, description:string, procedure_type:string, control_organism:string)
+  stateful entrypoint add_irrigation_type(id:int, name:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.irrigation_types),"irrigation type already exists")
+    let irrigation_type_to_add = {id=id,name=name}
+    put(state{irrigation_types[id]=irrigation_type_to_add})
+    Chain.event(AddIrrigationType(id,name))
+  
+  stateful entrypoint add_plant_variety(id:int, name:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.plan_varieties),"plant variety type already exists")
+    let plan_variety_to_add = {id=id,name=name}
+    put(state{plan_varieties[id]=plan_variety_to_add})
+    Chain.event(AddPlantVariety(id,name))
+
+  stateful entrypoint add_product(id:string,trade_name:string,composition:string,active_principle:bool,is_organic:bool) = 
+    isAdmin()//?
+    require(!Map.member(id,state.products),"product already exists")
+    let product_to_add = {id=id,trade_name=trade_name,composition=composition,active_principle=active_principle,is_organic=is_organic}
+    put(state{products[id]=product_to_add})
+    Chain.event(AddProduct(trade_name))
+
+  stateful entrypoint add_mother_plant(identifier:string, description:string) = 
+    isAdmin()//?
+    require(!Map.member(identifier,state.mother_plants),"mother plant already exists")
+    let mother_plant_to_add = {identifier=identifier,description=description}
+    put(state{mother_plants[identifier]=mother_plant_to_add})
+    Chain.event(AddMotherPlant(description))
+
+  stateful entrypoint add_beacon(id:int,identifier:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.beacons),"beacon already exists")
+    let beacon_to_add = {id=id,identifier=identifier}
+    put(state{beacons[id]=beacon_to_add})
+    Chain.event(AddBeacon(id,identifier))
+
+  stateful entrypoint add_work_order(id:int, 
+         wo_state:string,
+         start_date:string,
+         finish_date:string,
+         procedure_id:string,
+         lot_stage_id:int,
+         product_id:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.work_orders),"work order already exists")
+    let procedure=state.procedures[procedure_id]
+    let lot_stage=state.lot_stages[lot_stage_id]
+    let product=state.products[product_id]
+    let work_order_to_add = {id=id,wo_state=wo_state,start_date=start_date,finish_date=finish_date,procedure=procedure,product=product,lot_stage=lot_stage}
+    
+    put(state{work_orders[id]=work_order_to_add})
+    Chain.event(AddWorkOrder(id,wo_state))
+    
+ 
+  
+  stateful entrypoint add_stage(id:string,
+         name:string,
+         order:int,
+         created_at:string,
+         plant_density:int,
+         key:string,
+         admits_beacons:bool) = 
+    isAdmin()//?
+    require(!Map.member(id,state.stages),"stage already exists")
+    let stage_to_add = {id=id,name=name,order=order,created_at=created_at,plant_density=plant_density,key=key,admits_beacons=admits_beacons}
+    put(state{stages[id]=stage_to_add})
+    Chain.event(AddStage(name))
+
+  stateful entrypoint add_application(id:string,
+         quantity:int,
+         measure_unit_id:int,
+         created_at:string,  //todate
+         work_order_id:int) = 
+    isAdmin()//?
+    require(!Map.member(id,state.applications),"application already exists")
+    let work_order= state.work_orders[work_order_id]
+    let measure_unit=state.measure_units[measure_unit_id]
+    let application_to_add = {id=id,quantity=quantity,measure_unit=measure_unit,created_at=created_at,work_order=work_order}
+    
+    put(state{applications[id]=application_to_add})
+    Chain.event(AddApplication(id,work_order_id))
+
+  stateful entrypoint add_measure_unit(id:int,name:string,short_name:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.measure_units),"measure unit already exists")
+    let measure_unit_to_add = {id=id,name=name,short_name=short_name}
+    put(state{measure_units[id]=measure_unit_to_add})
+    Chain.event(AddMeasureUnit(id,name))
+
+  stateful entrypoint add_flower_pot_size(id:string,
+       value:int, // OS: worth creating decimal library?
+       identifier:string,
+       measure_unit_id : int) = 
+    isAdmin()//?
+    require(!Map.member(id,state.flower_pot_sizes),"measure unit already exists")
+    let measure_unit=state.measure_units[measure_unit_id]
+    let flower_pot_size_to_add = {id=id,value=value,identifier=identifier,measure_unit=measure_unit}
+    put(state{flower_pot_sizes[id]=flower_pot_size_to_add})
+    Chain.event(AddFlowerPotSize(identifier))
+    
+  stateful entrypoint add_substratum_type(id:string,name:string,composition:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.subtratum_types),"substatum type unit already exists")
+    let substratum_type_to_add = {id=id,name=name,composition=composition}
+    put(state{subtratum_types[id]=substratum_type_to_add})
+    Chain.event(AddSubtratumType(name))
+  
+  stateful entrypoint add_green_house_location(id:string,identifier:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.green_house_locations),"greenhouse location already exists")
+    let green_house_location_to_add = {id=id,identifier=identifier}
+    put(state{green_house_locations[id]=green_house_location_to_add})
+    Chain.event(AddGreenHouseLocation(identifier))
+   
+  stateful entrypoint add_green_house_location_history(id:int,lot_stage_id:int,
+         green_house_location_id:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.green_house_locations_history),"greenhouse location history already exists")
+    let green_house_location=state.green_house_locations[green_house_location_id]
+    let lot_stage=state.lot_stages[lot_stage_id]
+    let green_house_location_history_to_add = {id=id,lot_stage=lot_stage,green_house_location=green_house_location}
+    put(state{green_house_locations_history[id]=green_house_location_history_to_add})
+    Chain.event(AddGreenHouseLocationHistory(id,lot_stage_id,green_house_location_id))
+    
+  stateful entrypoint add_lot(identifier : int, 
+         name : string,
+         start_date : string,
+         end_date : string,
+         variety_id: int,
+         irrigation_type_id : int,
+         weight_in_kg:int) = 
+    isAdmin()//?
+    require(!Map.member(identifier,state.lots),"lot already exists")
+    let variety=state.plan_varieties[variety_id]
+    let irrigation_type=state.irrigation_types[irrigation_type_id]
+    let lot_to_add = {identifier=identifier,name=name, start_date=start_date,end_date=end_date,variety=variety,irrigation_type=irrigation_type,weight_in_kg=weight_in_kg}
+    
+    put(state{lots[identifier]=lot_to_add})
+    Chain.event(AddLot(identifier,name))
+    
+  stateful entrypoint add_lot_stage(id:int,
+         lot_id:int,
+         beacons : map(int,beacon),
+         stage_id:string,
+         users: map(address,user),
+         actual_state:string,
+         subtratum_type_id:string,
+         flower_pot_size_id: string,
+         mother_plant_id:string,
+         plant_density:int,
+         weight_in_kg:int,
+         origin:string,
+         destination:string,
+         fresh_flower_weight:int,
+         manicure_and_trim_date:string,
+         flowers_entry_weight:int,
+         dry_flowers_weight:int,
+         beginning_of_drying_date:string) = 
+    isAdmin()//?
+    require(!Map.member(id,state.lot_stages),"lot stage already exists")
+    let lot=state.lots[lot_id]
+    let stage=state.stages[stage_id]
+    let subtratum_type=state.subtratum_types[subtratum_type_id]
+    let flower_pot_size=state.flower_pot_sizes[flower_pot_size_id]
+    let mother_plant=state.mother_plants[mother_plant_id]
+    let lot_stage_to_add = {id=id,lot=lot,beacons=beacons,stage=stage,users=users,actual_state=actual_state,subtratum_type=subtratum_type, flower_pot_size=flower_pot_size,mother_plant=mother_plant,plant_density=plant_density,weight_in_kg=weight_in_kg,origin=origin,destination=destination,fresh_flower_weight=fresh_flower_weight,manicure_and_trim_date=manicure_and_trim_date,flowers_entry_weight=flowers_entry_weight,dry_flowers_weight=dry_flowers_weight, beginning_of_drying_date=beginning_of_drying_date}
+    put(state{lot_stages[id]=lot_stage_to_add})
+    Chain.event(AddLotStage(id,lot_id))
+
+  entrypoint get_users()=
+      isAdmin()
+      state.users
+  entrypoint get_roles()=
+    state.roles
+  entrypoint get_applications() = 
+    state.applications
+  entrypoint get_lots() = 
+    state.lots
+  entrypoint get_plan_varieties() = 
+    state.plan_varieties
+  entrypoint get_irrigation_types() = 
+    state.irrigation_types
+  entrypoint get_beacons() = 
+    state.beacons
+  entrypoint get_work_orders() = 
+    state.work_orders
+  entrypoint get_products() = 
+    state.products
+  entrypoint get_lot_stages() = 
+    state.lot_stages
+  entrypoint get_mother_plants() = 
+    state.mother_plants
+  entrypoint get_stages() = 
+    state.stages
+  entrypoint get_measure_units() = 
+    state.measure_units
+  entrypoint get_flower_pot_sizes() = 
+    state.flower_pot_sizes
+  entrypoint get_subtratum_types() = 
+    state.subtratum_types 
+  entrypoint get_green_house_locations() = 
+    state.green_house_locations
+  entrypoint get_green_house_locations_history() = 
+    state.green_house_locations_history
+    
+    
